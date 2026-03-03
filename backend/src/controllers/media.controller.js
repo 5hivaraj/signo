@@ -149,7 +149,9 @@ exports.createMedia = catchAsync(async (req, res) => {
 
   const mimeType = req.file.mimetype;
   const originalName = req.file.originalname;
-  const filename = req.file.filename;
+  // Support both disk storage (multer.diskStorage) and S3-style storage (e.g. multer-s3)
+  // Disk: filename + path; S3: key + location
+  const storageKey = req.file.key || req.file.filename || originalName;
   const fileSize = req.file.size;
 
   // Check storage limit before processing
@@ -224,95 +226,126 @@ exports.createMedia = catchAsync(async (req, res) => {
   let width = null;
   let height = null;
   let optimizationResults = null;
-if (type === 'IMAGE') {
-  // Optimize image
-  try {
-    optimizationResults = await imageOptimizationService.optimizeImage(req.file.path, filename);
-    width = optimizationResults.original.width;
-    height = optimizationResults.original.height;
 
-    console.log(`🖼️ Image optimized: ${filename} - Original: ${optimizationResults.original.size} bytes`);
-  } catch (optimizationError) {
-    console.warn('⚠️ Image optimization failed:', optimizationError.message);
-  }
+  if (type === 'IMAGE') {
+    if (req.file.path) {
+      // Local file available – run optimization against disk
+      try {
+        optimizationResults = await imageOptimizationService.optimizeImage(req.file.path, storageKey);
+        width = optimizationResults.original.width;
+        height = optimizationResults.original.height;
 
-  url = `/uploads/${filename}`;
-  finalFilename = filename;
-  originalUrl = null;
-} else if (type === 'VIDEO') {
-
-  // Extract video metadata
-  const metadata = await extractVideoMetadata(req.file.path);
-  duration = metadata.duration > 0 ? Math.round(metadata.duration) : null;
-  width = metadata.width > 0 ? metadata.width : null;
-  height = metadata.height > 0 ? metadata.height : null;
-
-  const mediaId = crypto.randomBytes(12).toString('hex');
-  const hlsDir = path.join(uploadsDir, 'hls', mediaId);
-
-  // Store original MP4 for fallback/offline
-  originalUrl = `/uploads/${filename}`;
-  console.log(`📦 Original MP4 URL stored: ${originalUrl}`);
-
-  try {
-    fs.mkdirSync(hlsDir, { recursive: true });
-    console.log(`📁 Created HLS directory: ${hlsDir}`);
-  } catch (mkdirErr) {
-    console.error('❌ Failed to create HLS directory:', mkdirErr.message);
-    url = `/uploads/${filename}`;
-    finalFilename = filename;
-  }
-
-  if (!url) {
-
-    const result = await convertToHLS(req.file.path, hlsDir);
-
-    if (result.success) {
-
-      const m3u8Path = path.join(hlsDir, 'index.m3u8');
-
-      if (fs.existsSync(m3u8Path)) {
-
-        url = `/uploads/hls/${mediaId}/index.m3u8`;
-        finalFilename = `hls/${mediaId}/index.m3u8`;
-
-        console.log(`✅ HLS conversion successful: ${url}`);
-
-      } else {
-
-        console.warn('⚠️ index.m3u8 not found after conversion');
-
-        try {
-          if (fs.existsSync(hlsDir)) {
-            fs.rmSync(hlsDir, { recursive: true });
-          }
-        } catch (cleanupErr) {
-          console.warn('⚠️ Failed cleaning HLS dir:', cleanupErr.message);
-        }
-
-        url = `/uploads/${filename}`;
-        finalFilename = filename;
-        originalUrl = null;
+        console.log(`🖼️ Image optimized: ${storageKey} - Original: ${optimizationResults.original.size} bytes`);
+      } catch (optimizationError) {
+        console.warn('⚠️ Image optimization failed:', optimizationError.message);
       }
 
+      url = `/uploads/${storageKey}`;
+      finalFilename = storageKey;
+      originalUrl = null;
     } else {
+      // No local path – likely uploaded directly to S3. Use the remote URL.
+      const remoteUrl = req.file.location || req.file.url || null;
+      if (!remoteUrl) {
+        console.error('❌ [MEDIA CREATE DEBUG] No local path or remote URL for uploaded image file');
+        return res.status(500).json({ message: 'Upload processing failed: missing file location' });
+      }
 
-      console.warn('❌ HLS conversion failed, using original file');
+      url = remoteUrl;
+      finalFilename = storageKey;
+      originalUrl = null;
+
+      console.log('🖼️ [MEDIA CREATE DEBUG] Using remote image URL (S3):', url);
+    }
+  } else if (type === 'VIDEO') {
+
+    if (req.file.path) {
+      // Local file path available – run ffprobe/ffmpeg and generate HLS
+      const metadata = await extractVideoMetadata(req.file.path);
+      duration = metadata.duration > 0 ? Math.round(metadata.duration) : null;
+      width = metadata.width > 0 ? metadata.width : null;
+      height = metadata.height > 0 ? metadata.height : null;
+
+      const mediaId = crypto.randomBytes(12).toString('hex');
+      const hlsDir = path.join(uploadsDir, 'hls', mediaId);
+
+      // Store original MP4 for fallback/offline
+      originalUrl = `/uploads/${storageKey}`;
+      console.log(`📦 Original MP4 URL stored: ${originalUrl}`);
 
       try {
-        if (fs.existsSync(hlsDir)) {
-          fs.rmSync(hlsDir, { recursive: true });
-        }
-      } catch (cleanupErr) {
-        console.warn('⚠️ Failed cleaning HLS dir:', cleanupErr.message);
+        fs.mkdirSync(hlsDir, { recursive: true });
+        console.log(`📁 Created HLS directory: ${hlsDir}`);
+      } catch (mkdirErr) {
+        console.error('❌ Failed to create HLS directory:', mkdirErr.message);
+        url = `/uploads/${storageKey}`;
+        finalFilename = storageKey;
       }
 
-      url = `/uploads/${filename}`;
-      finalFilename = filename;
+      if (!url) {
+
+        const result = await convertToHLS(req.file.path, hlsDir);
+
+        if (result.success) {
+
+          const m3u8Path = path.join(hlsDir, 'index.m3u8');
+
+          if (fs.existsSync(m3u8Path)) {
+
+            url = `/uploads/hls/${mediaId}/index.m3u8`;
+            finalFilename = `hls/${mediaId}/index.m3u8`;
+
+            console.log(`✅ HLS conversion successful: ${url}`);
+
+          } else {
+
+            console.warn('⚠️ index.m3u8 not found after conversion');
+
+            try {
+              if (fs.existsSync(hlsDir)) {
+                fs.rmSync(hlsDir, { recursive: true });
+              }
+            } catch (cleanupErr) {
+              console.warn('⚠️ Failed cleaning HLS dir:', cleanupErr.message);
+            }
+
+            url = `/uploads/${storageKey}`;
+            finalFilename = storageKey;
+            originalUrl = null;
+          }
+
+        } else {
+
+          console.warn('❌ HLS conversion failed, using original file');
+
+          try {
+            if (fs.existsSync(hlsDir)) {
+              fs.rmSync(hlsDir, { recursive: true });
+            }
+          } catch (cleanupErr) {
+            console.warn('⚠️ Failed cleaning HLS dir:', cleanupErr.message);
+          }
+
+          url = `/uploads/${storageKey}`;
+          finalFilename = storageKey;
+          originalUrl = null;
+        }
+      }
+    } else {
+      // No local file path – likely using S3 or other remote storage adapter
+      const remoteUrl = req.file.location || req.file.url || null;
+      if (!remoteUrl) {
+        console.error('❌ [MEDIA CREATE DEBUG] No local path or remote URL for uploaded video file');
+        return res.status(500).json({ message: 'Upload processing failed: missing file location' });
+      }
+
+      url = remoteUrl;
+      finalFilename = storageKey;
       originalUrl = null;
+
+      console.log('📦 [MEDIA CREATE DEBUG] Using remote video URL (S3):', url);
     }
   }
-}
 
  // Parse endDate if provided
   let endDate = null;
