@@ -14,3 +14,4 @@ __pycache__/
 .gradle/
 *.log
 backend/logs/
+.env
