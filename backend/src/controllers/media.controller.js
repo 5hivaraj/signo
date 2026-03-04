@@ -153,6 +153,8 @@ exports.createMedia = catchAsync(async (req, res) => {
   // Disk: filename + path; S3: key + location
   const storageKey = req.file.key || req.file.filename || originalName;
   const fileSize = req.file.size;
+  const fileSizeMB = fileSize / (1024 * 1024);
+  const isProduction = process.env.NODE_ENV === 'production';
 
   // Check storage limit before processing
   const clientAdminId = await getClientAdminId(req.user.id);
@@ -259,7 +261,29 @@ exports.createMedia = catchAsync(async (req, res) => {
     }
   } else if (type === 'VIDEO') {
 
-    if (req.file.path) {
+    // In production, skip HLS conversion for large files to avoid long-running uploads.
+    // This makes uploads fast and avoids 504 timeouts from Nginx.
+    const shouldSkipHLS = isProduction && fileSizeMB >= 50;
+
+    if (shouldSkipHLS) {
+      console.log(`📦 [MEDIA CREATE DEBUG] Skipping HLS conversion (prod, large file ~${fileSizeMB.toFixed(2)}MB). Using original MP4.`);
+
+      // Optionally still extract basic metadata if we have a local path
+      if (req.file.path) {
+        try {
+          const metadata = await extractVideoMetadata(req.file.path);
+          duration = metadata.duration > 0 ? Math.round(metadata.duration) : null;
+          width = metadata.width > 0 ? metadata.width : null;
+          height = metadata.height > 0 ? metadata.height : null;
+        } catch (metaErr) {
+          console.warn('⚠️ Failed to extract video metadata (skipHLS path):', metaErr.message);
+        }
+      }
+
+      url = `/uploads/${storageKey}`;
+      finalFilename = storageKey;
+      originalUrl = null;
+    } else if (req.file.path) {
       // Local file path available – run ffprobe/ffmpeg and generate HLS
       const metadata = await extractVideoMetadata(req.file.path);
       duration = metadata.duration > 0 ? Math.round(metadata.duration) : null;
