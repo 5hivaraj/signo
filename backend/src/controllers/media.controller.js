@@ -259,7 +259,8 @@ exports.createMedia = catchAsync(async (req, res) => {
 
       console.log('🖼️ [MEDIA CREATE DEBUG] Using remote image URL (S3):', url);
     }
-  } else if (type === 'VIDEO') {
+  } else if (type === 'VIDEO')
+     {
 
     // In production, skip HLS conversion for large files to avoid long-running uploads.
     // This makes uploads fast and avoids 504 timeouts from Nginx.

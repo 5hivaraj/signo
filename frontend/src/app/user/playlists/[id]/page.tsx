@@ -313,46 +313,46 @@ function AddToPlaylistDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md bg-white text-gray-900 border-gray-200 shadow-xl">
         <DialogHeader>
-          <DialogTitle>Add to playlist</DialogTitle>
-          <DialogDescription>
+          <DialogTitle className="text-gray-900">Add to playlist</DialogTitle>
+          <DialogDescription className="text-gray-600">
             Set orientation, rotation, and resize for &quot;{media.name}&quot;
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-sm font-medium">Orientation</Label>
+              <Label className="text-sm font-medium text-gray-900">Orientation</Label>
               <select
                 value={orientation}
                 onChange={(e) => setOrientation(e.target.value as OrientationType)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               >
                 <option value="LANDSCAPE">Landscape</option>
                 <option value="PORTRAIT">Portrait</option>
               </select>
             </div>
             <div>
-              <Label className="text-sm font-medium">Rotation</Label>
+              <Label className="text-sm font-medium text-gray-900">Rotation</Label>
               <select
                 value={rotation}
                 onChange={(e) => setRotation(Number(e.target.value) as RotationDeg)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               >
                 <option value={0}>0°</option>
                 <option value={90}>90° CW</option>
                 <option value={180}>180°</option>
                 <option value={270}>270° (90° CCW)</option>
               </select>
-              <p className="text-xs text-gray-500 mt-0.5">Turn the image</p>
+              <p className="text-xs text-gray-600 mt-0.5">Turn the image</p>
             </div>
             <div className="col-span-2">
-              <Label className="text-sm font-medium">Resize</Label>
+              <Label className="text-sm font-medium text-gray-900">Resize</Label>
               <select
                 value={resizeMode}
                 onChange={(e) => setResizeMode(e.target.value as ResizeModeType)}
-                className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
               >
                 <option value="FIT">Fit (contain)</option>
                 <option value="FILL">Fill (cover)</option>
@@ -361,9 +361,9 @@ function AddToPlaylistDialog({
             </div>
           </div>
           <div>
-            <Label className="text-sm font-medium mb-2 block">Preview</Label>
+            <Label className="text-sm font-medium text-gray-900 mb-2 block">Preview</Label>
             <div
-              className={`mx-auto overflow-hidden rounded-lg border-2 border-gray-200 bg-black flex items-center justify-center relative ${
+              className={`mx-auto overflow-hidden rounded-lg border-2 border-gray-300 bg-black flex items-center justify-center relative ${
                 usePortraitFrame ? 'w-32 aspect-[9/16]' : 'w-full max-w-xs aspect-video'
               }`}
             >
@@ -405,11 +405,20 @@ function AddToPlaylistDialog({
             </div>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="border-gray-300 bg-gray-100 text-gray-800 hover:bg-gray-200 hover:text-gray-900"
+          >
             Cancel
           </Button>
-          <Button onClick={() => onConfirm(orientation, resizeMode, rotation)}>
+          <Button
+            type="button"
+            onClick={() => onConfirm(orientation, resizeMode, rotation)}
+            className="bg-gradient-to-r from-yellow-400 to-yellow-500 hover:from-yellow-500 hover:to-yellow-600 text-gray-900 font-semibold"
+          >
             Add to playlist
           </Button>
         </DialogFooter>
@@ -844,9 +853,9 @@ export default function PlaylistEditorPage() {
             </div>
             <div className="flex-1 overflow-y-auto p-4">
               {filteredMedia.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                  <FileImage className="h-12 w-12 mb-2 opacity-50" />
-                  <p className="text-sm">No media found</p>
+                <div className="flex flex-col items-center justify-center h-full text-gray-600">
+                  <FileImage className="h-12 w-12 mb-2 opacity-60" />
+                  <p className="text-sm font-medium">No media found</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
@@ -875,7 +884,7 @@ export default function PlaylistEditorPage() {
           >
             <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
               <h2 className="text-lg font-semibold text-gray-900">Playlist Sequence</h2>
-              <p className="text-sm text-gray-600 mt-1">Drag to reorder • Click media to add</p>
+              <p className="text-sm text-gray-700 mt-1">Drag to reorder • Click media to add</p>
             </div>
             <DndContext
               sensors={sensors}
@@ -885,13 +894,13 @@ export default function PlaylistEditorPage() {
             >
               <div className="flex-1 overflow-y-auto p-4">
                 {items.length === 0 ? (
-                  <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50">
-                    <div className="text-center">
-                      <FileVideo className="mx-auto h-12 w-12 text-gray-400 mb-3" />
-                      <p className="text-gray-600 font-medium">
+                  <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 min-h-[200px]">
+                    <div className="text-center px-4">
+                      <FileVideo className="mx-auto h-12 w-12 text-gray-500 mb-3" />
+                      <p className="text-gray-800 font-medium">
                         {canEdit ? 'Drag media here to build your playlist' : 'Playlist is empty'}
                       </p>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-gray-600 mt-1">
                         {canEdit ? 'Or click on media from the library to add' : ''}
                       </p>
                     </div>
